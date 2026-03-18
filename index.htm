@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快餐店大冒險</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <style>
+        /* 設定全域字體為新細明體 (PMingLiU) */
+        /* 移除所有文字元素的預設背景顏色，避免出現黃色高亮 */
+        body, button, div, span, h1, h2, h3, p, b, i {
+            font-family: "PMingLiU", "MingLiU", "新細明體", serif;
+            background-color: transparent; 
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        body {
+            background-color: #fef3c7; /* 整體網頁背景色 */
+        }
+
+        /* 標題樣式 */
+        .game-title {
+            color: #d97706;
+            font-weight: bold;
+        }
+
+        .mcdonald-red { background-color: #da291c; }
+        .mcdonald-yellow { background-color: #ffbc0d; }
+        .mcdonald-yellow-text { color: #ffbc0d; }
+
+        .btn-hover {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-hover:active {
+            transform: scale(0.95);
+        }
+
+        .lever-arm {
+            width: 20px;
+            height: 100px;
+            background: #4b5563;
+            border-radius: 10px;
+            position: relative;
+            transform-origin: bottom center;
+            transition: transform 0.5s;
+        }
+        .lever-knob {
+            width: 40px;
+            height: 40px;
+            background: #da291c;
+            border-radius: 50%;
+            position: absolute;
+            top: -20px;
+            left: -10px;
+            cursor: pointer;
+        }
+        .lever-pull {
+            transform: rotateX(180deg);
+        }
+
+        .slot-window {
+            height: 180px;
+            overflow-y: auto;
+            border: 5px solid #ffbc0d;
+            background: white;
+            border-radius: 20px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .scenario-text-display {
+            padding: 15px;
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        /* 隱藏滾動條但保持功能 */
+        .slot-window::-webkit-scrollbar { width: 0px; }
+
+        /* 修正按鈕內文字的背景問題 */
+        button span, button h3 {
+            background: none !important;
+        }
+    </style>
+</head>
+<body class="bg-yellow-50 min-h-screen flex items-center justify-center p-4">
+
+    <div id="game-container" class="max-w-4xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border-8 border-yellow-400 relative">
+        
+        <div class="mcdonald-red p-4 flex justify-between items-center text-white font-bold">
+            <div id="current-game-title" class="text-lg">情緒大冒險</div>
+            <div class="bg-white text-red-600 px-4 py-1 rounded-full shadow">
+                得分: <span id="score">0</span>
+            </div>
+        </div>
+
+        <div id="screen-content" class="p-6 md:p-10 min-h-[500px] flex flex-col items-center justify-center">
+            <div class="text-center">
+                <h1 class="text-5xl game-title mb-6 animate__animated animate__bounceIn">🍔 快餐店大冒險 🍟</h1>
+                <p class="text-xl text-gray-600 mb-8 font-bold">小朋友，準備好學習各種心情了嗎？</p>
+                <button onclick="showMenu()" class="mcdonald-yellow text-red-700 font-bold py-4 px-10 rounded-full text-2xl shadow-lg btn-hover border-b-4 border-yellow-600">
+                    開始遊戲
+                </button>
+            </div>
+        </div>
+
+        <div id="footer-nav" class="hidden p-2 bg-gray-100 border-t flex justify-center space-x-2">
+            <button onclick="showMenu()" class="text-sm text-gray-500 hover:underline">返回選單</button>
+        </div>
+    </div>
+
+    <audio id="sound-correct" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
+    <audio id="sound-wrong" src="https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3"></audio>
+    <audio id="sound-pop" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
+
+    <script>
+        const scenarioData = [
+            { id: 1, text: "媽媽今天下班後，帶你來快餐店吃晚餐（是你最喜歡的！）。", options: ["傷心", "開心", "緊張"], answer: "開心", script: "好耶！有得食快餐！", tip: "拿著托盤，露出微笑說" },
+            { id: 2, text: "你在快餐店找到一個靠窗漂亮的座位，可以舒舒服服地吃漢堡包。", options: ["害怕", "開心", "興奮"], answer: "開心", script: "這個座位真舒服，我很開心！", tip: "拿著漢堡包坐下，拍拍肚子說" },
+            { id: 3, text: "你打開兒童餐，發現裡面竟然是你最想要、超級罕有的玩具！", options: ["害怕", "開心", "興奮"], answer: "興奮", script: "嘩！是我最想要的閃卡呀！", tip: "瞪大眼睛、舉高雙手大叫" },
+            { id: 4, text: "你不小心把剛剛買的軟雪糕掉在地上，不能吃了。", options: ["興奮", "傷心", "失望"], answer: "傷心", script: "嗚嗚，我的雪糕跌落地下了……", tip: "看著地上的雪糕，扮作抹眼淚說" },
+            { id: 5, text: "你排隊買最喜歡的漢堡，但店員說：『對不起，剛剛賣完了。』", options: ["害怕", "傷心", "失望"], answer: "失望", script: "唉，排了那麼久，原來賣完了……", tip: "垂下肩膀，嘆一口氣說" },
+            { id: 6, text: "你滿心期待打開玩具，結果發現是你家裡已經有三個的同樣的款式。", options: ["緊張", "傷心", "失望"], answer: "失望", script: "哦……原來又是這款，家裡已經有了。", tip: "拿著玩具，輕輕搖搖頭說" },
+            { id: 7, text: "第一次自己走到收銀台點餐，後面還有很多人排隊，怕自己會講錯。", options: ["失望", "緊張", "害怕"], answer: "緊張", script: "我……我想買一個漢堡包。", tip: "深呼吸，口吃地說" },
+            { id: 8, text: "低頭一望發現有隻大蟑螂！", options: ["緊張", "傷心", "害怕"], answer: "害怕", script: "嘩！有曱甴呀！", tip: "把腳縮起來，瞪大眼睛大叫" },
+            { id: 9, text: "發現原本坐在位子上的媽媽不見了，周圍全是陌生人。", options: ["興奮", "失望", "害怕"], answer: "害怕", script: "媽媽去了哪裡？全部都是不認識的人，我好驚呀……", tip: "慌張地四處張望說" },
+            { id: 10, text: "雙手捧著滿滿可樂的托盤找位子，很怕會把可樂打翻。", options: ["傷心", "害怕", "緊張"], answer: "緊張", script: "好緊張，千萬不要跌落地下呀……", tip: "雙手夾緊，一步一步小心走" }
+        ];
+
+        const fillInData = [
+            { q: "聽到今天晚餐吃快餐，我覺得很 ( _____ )。", options: ["開心", "興奮"], answer: "開心" },
+            { q: "當我看到快餐店裡有小丑在派氣球和表演魔術時，我 ( _____ ) 得跳了起來！", options: ["開心", "興奮"], answer: "興奮" },
+            { q: "我的薯條被哥哥不小心打翻了，我覺得很 ( _____ )，流下了眼淚。", options: ["傷心", "失望"], answer: "傷心" },
+            { q: "我原本以為買兒童餐會送玩具，結果今天派完了，我覺得有點 ( _____ )。", options: ["傷心", "失望"], answer: "失望" },
+            { q: "我不小心把可樂倒在旁邊陌生叔叔的鞋子上，他惡狠狠地看著我，我 ( _____ ) 得想馬上躲起來。", options: ["緊張", "害怕"], answer: "害怕" },
+            { q: "我從來都沒有試過點餐，但今天媽媽叫我自己向店員點餐時，我的心跳得好快，覺得有點 ( _____ )。", options: ["緊張", "害怕"], answer: "緊張" }
+        ];
+
+        const managerData = [
+            { q: "我自己捧著滿滿的餐盤行路找座位，好怕會把可樂跌在地上，我覺得好「緊張」。", correct: true },
+            { q: "我排隊拿餐的時候，突然有一隻好大的老鼠跑出來，我覺得好「興奮」！", correct: false, reason: "看到可怕的東西應該是：害怕" },
+            { q: "爸爸買了我最喜歡的熱香餅給我，我覺得很「開心」。", correct: true },
+            { q: "店員說雪糕機壞了，今天沒有雪糕吃，我的期待落空了，我覺得好「害怕」。", correct: false, reason: "想吃但吃不到應該是：失望" },
+            { q: "明天學校旅行會去快餐店吃午餐，還可以參觀廚房，我今晚「興奮」得睡不著覺！", correct: true },
+            { q: "我不小心把剛買的漢堡包跌在坑渠裡，不能吃了，我覺得好「緊張」。", correct: false, reason: "失去了食物應該是：傷心" }
+        ];
+
+        let score = 0;
+        let l1Index = 0;
+        let l2Index = 0;
+        let l3Index = 0;
+
+        function updateScore(points) {
+            score += points;
+            document.getElementById('score').innerText = score;
+        }
+
+        function playSound(id) {
+            const sound = document.getElementById('sound-' + id);
+            if(sound) {
+                sound.currentTime = 0;
+                sound.play().catch(() => {});
+            }
+        }
+
+        function showMenu() {
+            document.getElementById('footer-nav').classList.add('hidden');
+            const content = document.getElementById('screen-content');
+            content.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-3xl">
+                    <button onclick="startLevel1()" class="bg-white border-4 border-red-500 rounded-2xl p-6 shadow-xl hover:bg-red-50 transition btn-hover flex flex-col items-center">
+                        <span class="text-4xl mb-4">🎰</span>
+                        <h3 class="text-xl font-bold text-red-600">遊戲一：<br>情境配對</h3>
+                    </button>
+                    <button onclick="startLevel2()" class="bg-white border-4 border-yellow-500 rounded-2xl p-6 shadow-xl hover:bg-yellow-50 transition btn-hover flex flex-col items-center">
+                        <span class="text-4xl mb-4">✏️</span>
+                        <h3 class="text-xl font-bold text-yellow-600">遊戲二：<br>句子配對</h3>
+                    </button>
+                    <button onclick="startLevel3()" class="bg-white border-4 border-green-500 rounded-2xl p-6 shadow-xl hover:bg-green-50 transition btn-hover flex flex-col items-center">
+                        <span class="text-4xl mb-4">👨‍💼</span>
+                        <h3 class="text-xl font-bold text-green-600">遊戲三：<br>小經理大考驗</h3>
+                    </button>
+                </div>
+            `;
+            document.getElementById('current-game-title').innerText = "快餐店情緒大冒險 - 選單";
+        }
+
+        function startLevel1() {
+            document.getElementById('footer-nav').classList.remove('hidden');
+            l1Index = 0;
+            renderLevel1();
+        }
+
+        function renderLevel1() {
+            const content = document.getElementById('screen-content');
+            document.getElementById('current-game-title').innerText = `遊戲一：情境配對 (${l1Index + 1}/5)`;
+            content.innerHTML = `
+                <div class="w-full text-center">
+                    <p class="text-lg font-bold mb-6 text-gray-700">請拉動右邊的手柄抽取情境！</p>
+                    <div class="flex justify-center items-center space-x-8 mb-10">
+                        <div class="slot-window w-full max-w-md relative">
+                            <div id="slot-text" class="scenario-text-display animate__animated">
+                                🍔<br>點擊拉桿開始
+                            </div>
+                        </div>
+                        <div class="lever-base flex flex-col items-center">
+                            <div id="lever" class="lever-arm">
+                                <div class="lever-knob" onclick="pullLever()"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="l1-options-container" class="invisible">
+                        <p class="text-gray-500 font-bold mb-4">請選擇適合的情緒：</p>
+                        <div class="grid grid-cols-3 gap-4" id="l1-options"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function pullLever() {
+            const lever = document.getElementById('lever');
+            const slotText = document.getElementById('slot-text');
+            const optionsContainer = document.getElementById('l1-options-container');
+            lever.classList.add('lever-pull');
+            playSound('pop');
+            setTimeout(() => lever.classList.remove('lever-pull'), 500);
+            slotText.classList.remove('animate__fadeIn');
+            slotText.classList.add('animate__fadeOutUp');
+            optionsContainer.classList.add('invisible');
+            setTimeout(() => {
+                const scenario = scenarioData[Math.floor(Math.random() * scenarioData.length)];
+                slotText.classList.remove('animate__fadeOutUp');
+                slotText.innerText = scenario.text;
+                slotText.classList.add('animate__fadeInDown');
+                optionsContainer.classList.remove('invisible');
+                document.getElementById('l1-options').innerHTML = scenario.options.map(opt => `
+                    <button onclick="checkL1('${opt}', '${scenario.answer}', ${JSON.stringify(scenario)})" 
+                            class="bg-white border-2 border-red-500 py-3 rounded-xl font-bold text-red-600 hover:bg-red-50 shadow-md btn-hover">
+                        ${opt}
+                    </button>
+                `).join('');
+            }, 600);
+        }
+
+        function checkL1(choice, answer, scenario) {
+            if (choice === answer) {
+                playSound('correct');
+                updateScore(10);
+                const content = document.getElementById('screen-content');
+                content.innerHTML = `
+                    <div class="text-center animate__animated animate__zoomIn">
+                        <div class="text-6xl mb-4">🌟 太棒了！</div>
+                        <div class="bg-green-100 p-6 rounded-2xl border-4 border-green-500 mb-6">
+                            <p class="text-2xl font-bold text-green-700 mb-2">正確答案：${scenario.answer}</p>
+                            <p class="text-lg text-gray-700 mb-4">現在請拿著道具跟我一起演出來：</p>
+                            <div class="bg-white p-4 rounded-xl shadow-inner italic text-xl mb-4 text-gray-800">「${scenario.script}」</div>
+                            <p class="text-md text-blue-600 font-bold">演出提示：${scenario.tip}</p>
+                        </div>
+                        <button onclick="nextL1()" class="mcdonald-red text-white py-3 px-8 rounded-full font-bold shadow-lg btn-hover">下一題</button>
+                    </div>
+                `;
+            } else {
+                playSound('wrong');
+                showFeedback("不對哦，再想想當時的心情？", false);
+            }
+        }
+
+        function nextL1() {
+            l1Index++;
+            if (l1Index < 5) renderLevel1();
+            else showLevelComplete("遊戲一 完成！");
+        }
+
+        function startLevel2() {
+            document.getElementById('footer-nav').classList.remove('hidden');
+            l2Index = 0;
+            renderLevel2();
+        }
+
+        function renderLevel2() {
+            const data = fillInData[l2Index];
+            document.getElementById('current-game-title').innerText = `遊戲二：句子配對 (${l2Index + 1}/${fillInData.length})`;
+            const content = document.getElementById('screen-content');
+            content.innerHTML = `
+                <div class="w-full text-center">
+                    <div class="bg-blue-50 p-8 rounded-3xl border-4 border-blue-200 mb-8 shadow-inner">
+                        <p class="text-2xl font-bold text-blue-800 leading-relaxed">${data.q.replace('( _____ )', '<span class="px-6 py-1 border-b-4 border-blue-500 mx-2 bg-white rounded-lg text-red-600 min-w-[100px] inline-block text-center" id="drop-zone">?</span>')}</p>
+                    </div>
+                    <div class="flex justify-center space-x-6">
+                        ${data.options.map(opt => `
+                            <button onclick="checkL2('${opt}')" 
+                                    class="bg-white border-4 border-yellow-400 p-4 rounded-2xl text-2xl font-bold shadow-lg hover:rotate-2 transition-transform w-32 text-center text-gray-800">
+                                ${opt}
+                            </button>
+                        `).join('')}
+                    </div>
+                    <p class="mt-8 text-gray-500 font-bold">點擊正確的情緒詞填入空格</p>
+                </div>
+            `;
+        }
+
+        function checkL2(choice) {
+            if (choice === fillInData[l2Index].answer) {
+                playSound('correct');
+                updateScore(15);
+                showFeedback("答對了！你對情緒詞的運用很準確！", true, () => {
+                    l2Index++;
+                    if (l2Index < fillInData.length) renderLevel2();
+                    else showLevelComplete("遊戲二 完成！");
+                });
+            } else {
+                playSound('wrong');
+                showFeedback("哎呀，這個詞語好像不是最適合這句話哦。", false);
+            }
+        }
+
+        function startLevel3() {
+            document.getElementById('footer-nav').classList.remove('hidden');
+            l3Index = 0;
+            renderLevel3();
+        }
+
+        function renderLevel3() {
+            const data = managerData[l3Index];
+            document.getElementById('current-game-title').innerText = `遊戲三：小經理大考驗 (${l3Index + 1}/${managerData.length})`;
+            const content = document.getElementById('screen-content');
+            content.innerHTML = `
+                <div class="w-full text-center">
+                    <div class="mb-6 flex justify-center">
+                        <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=manager${l3Index}" class="w-32 h-32 bg-yellow-100 rounded-full border-4 border-white shadow-lg">
+                    </div>
+                    <div class="bg-gray-100 p-6 rounded-2xl border-2 border-gray-300 mb-8">
+                        <p class="text-xl font-bold text-gray-800">客人說：「${data.q}」</p>
+                    </div>
+                    <p class="text-lg mb-6 text-gray-600 font-bold">小經理，他說的情緒對嗎？</p>
+                    <div class="flex justify-center space-x-10">
+                        <button onclick="checkL3(true)" class="bg-white border-4 border-green-500 p-6 rounded-3xl shadow-xl btn-hover">
+                            <div class="text-6xl mb-2">✅</div>
+                            <div class="text-green-600 font-bold text-xl">對</div>
+                        </button>
+                        <button onclick="checkL3(false)" class="bg-white border-4 border-red-500 p-6 rounded-3xl shadow-xl btn-hover">
+                            <div class="text-6xl mb-2">❌</div>
+                            <div class="text-red-600 font-bold text-xl">不對</div>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function checkL3(choice) {
+            const data = managerData[l3Index];
+            if (choice === data.correct) {
+                playSound('correct');
+                updateScore(20);
+                let msg = choice ? "太聰明了！他說得正確。" : `正確！${data.reason}`;
+                showFeedback(msg, true, () => {
+                    l3Index++;
+                    if (l3Index < managerData.length) renderLevel3();
+                    else showLevelComplete("全部挑戰完成！");
+                });
+            } else {
+                playSound('wrong');
+                showFeedback("經理要再想想，客人的心情真的是這樣嗎？", false);
+            }
+        }
+
+        function showFeedback(msg, isCorrect, nextFn) {
+            const overlay = document.createElement('div');
+            overlay.className = "absolute inset-0 z-50 flex items-center justify-center p-6 bg-black bg-opacity-40 animate__animated animate__fadeIn";
+            overlay.innerHTML = `
+                <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border-4 ${isCorrect ? 'border-green-500' : 'border-red-500'}">
+                    <div class="text-6xl mb-4">${isCorrect ? '👏' : '🧐'}</div>
+                    <p class="text-xl font-bold mb-6 text-gray-800">${msg}</p>
+                    <button id="fb-btn" class="${isCorrect ? 'mcdonald-yellow text-red-700' : 'bg-gray-200 text-gray-700'} py-3 px-8 rounded-full font-bold shadow-lg">
+                        ${isCorrect ? '繼續' : '再試一次'}
+                    </button>
+                </div>
+            `;
+            document.getElementById('game-container').appendChild(overlay);
+            document.getElementById('fb-btn').onclick = () => {
+                overlay.remove();
+                if (isCorrect && nextFn) nextFn();
+            };
+        }
+
+        function showLevelComplete(title) {
+            const content = document.getElementById('screen-content');
+            content.innerHTML = `
+                <div class="text-center animate__animated animate__tada">
+                    <div class="text-8xl mb-6">🏆</div>
+                    <h2 class="text-4xl font-bold mcdonald-yellow-text mb-4">${title}</h2>
+                    <div class="text-2xl text-gray-600 mb-8 font-bold">得分：<span class="text-red-600 font-bold">${score}</span></div>
+                    <button onclick="showMenu()" class="mcdonald-red text-white py-4 px-12 rounded-full text-2xl font-bold shadow-lg btn-hover">返回選單</button>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
